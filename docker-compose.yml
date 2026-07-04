@@ -1,0 +1,78 @@
+version: '3.8'
+services:
+  orchestrator:
+    build: ./orchestrator-service
+    ports: ["8080:8080"]
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+    volumes:
+      - ./data/orchestrator:/app/data
+    depends_on:
+      mcp-calendar:
+        condition: service_healthy
+      mcp-pharmacy:
+        condition: service_healthy
+      mcp-notify:
+        condition: service_healthy
+      mcp-records:
+        condition: service_healthy
+
+  mcp-calendar:
+    build: ./mcp-calendar-server
+    ports: ["8081:8081"]
+    volumes:
+      - ./data/calendar:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 40s
+
+  mcp-pharmacy:
+    build: ./mcp-pharmacy-server
+    ports: ["8082:8082"]
+    volumes:
+      - ./data/pharmacy:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 40s
+
+  mcp-notify:
+    build: ./mcp-notify-server
+    ports: ["8083:8083"]
+    environment:
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+    volumes:
+      - ./data/notify:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 40s
+
+  mcp-records:
+    build: ./mcp-records-server
+    ports: ["8084:8084"]
+    volumes:
+      - ./data/records:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 40s
+
+  frontend:
+    build: ./frontend
+    ports: ["3000:80"]
+    depends_on:
+      - orchestrator
