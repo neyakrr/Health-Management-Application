@@ -1,0 +1,20 @@
+# Environment secrets — NEVER commit these
+.env
+
+# Java build output
+*/target/
+*.class
+*.jar
+
+# SQLite databases
+*.db
+data/
+
+# Node modules
+node_modules/
+frontend/dist/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
