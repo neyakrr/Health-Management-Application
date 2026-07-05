@@ -482,43 +482,4 @@ Patients can invite caregivers (family members, home nurses) to view their healt
 
 > Caregivers cannot modify any data. They can only view.
 
----
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Commit your changes: `git commit -m "Add my feature"`
-4. Push to the branch: `git push origin feature/my-feature`
-5. Open a Pull Request
-
----
-
-## License
-
-This project is built as a **capstone academic project**. All rights reserved to the original authors.
-
----
-
-## Troubleshooting
-
-**Services won't start:**
-```bash
-docker compose logs orchestrator   # View backend logs
-docker compose logs frontend       # View frontend logs
-```
-
-**NVIDIA API errors:**
-- Verify your `NVIDIA_API_KEY` is valid at [build.nvidia.com](https://build.nvidia.com)
-- Check that you have sufficient API credits
-
-**Email not sending:**
-- Ensure Gmail 2FA is enabled
-- Use an App Password (not your regular Gmail password)
-- Check `MAIL_USERNAME` and `MAIL_PASSWORD` in `.env`
-
-**Database issues:**
-```bash
-docker compose down -v             # Remove volumes (WARNING: deletes all data)
-docker compose up --build -d       # Fresh start
-```
