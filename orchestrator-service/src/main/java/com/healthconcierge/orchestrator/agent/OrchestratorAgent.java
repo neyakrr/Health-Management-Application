@@ -1,15 +1,15 @@
 package com.healthconcierge.orchestrator.agent;
 
-import com.healthconcierge.orchestrator.client.GeminiApiClient;
+import com.healthconcierge.orchestrator.client.NvidiaApiClient;
 import org.springframework.stereotype.Component;
 
 @Component
 public class OrchestratorAgent {
 
-    private final GeminiApiClient geminiApiClient;
+    private final NvidiaApiClient nvidiaApiClient;
 
-    public OrchestratorAgent(GeminiApiClient geminiApiClient) {
-        this.geminiApiClient = geminiApiClient;
+    public OrchestratorAgent(NvidiaApiClient nvidiaApiClient) {
+        this.nvidiaApiClient = nvidiaApiClient;
     }
 
     public String process(String userMessage) {
@@ -26,7 +26,7 @@ public class OrchestratorAgent {
             "  \"context_summary\": \"brief summary of what the user wants\"\n" +
             "}";
 
-        return geminiApiClient.chat(systemPrompt, userMessage);
+        return nvidiaApiClient.chat(systemPrompt, userMessage);
     }
 
     public String mergeResponses(String userMessage, String specialistResponses) {
@@ -36,7 +36,7 @@ public class OrchestratorAgent {
             "Do not use JSON — respond in plain conversational English only. " +
             "Keep it concise and reassuring.";
 
-        return geminiApiClient.chat(systemPrompt,
+        return nvidiaApiClient.chat(systemPrompt,
             "User message: " + userMessage + "\nSpecialist responses: " + specialistResponses);
     }
 }

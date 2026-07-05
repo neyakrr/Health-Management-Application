@@ -1,15 +1,15 @@
 package com.healthconcierge.orchestrator.agent;
 
-import com.healthconcierge.orchestrator.client.GeminiApiClient;
+import com.healthconcierge.orchestrator.client.NvidiaApiClient;
 import org.springframework.stereotype.Component;
 
 @Component
 public class CaregiverAgent {
 
-    private final GeminiApiClient geminiApiClient;
+    private final NvidiaApiClient nvidiaApiClient;
 
-    public CaregiverAgent(GeminiApiClient geminiApiClient) {
-        this.geminiApiClient = geminiApiClient;
+    public CaregiverAgent(NvidiaApiClient nvidiaApiClient) {
+        this.nvidiaApiClient = nvidiaApiClient;
     }
 
     public String process(String contextSummary) {
@@ -35,6 +35,6 @@ public class CaregiverAgent {
             "  \"response_text\": \"friendly reply to the user\"\n" +
             "}";
 
-        return geminiApiClient.chat(systemPrompt, contextSummary);
+        return nvidiaApiClient.chat(systemPrompt, contextSummary);
     }
 }

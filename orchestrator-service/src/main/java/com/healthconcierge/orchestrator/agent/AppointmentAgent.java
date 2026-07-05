@@ -1,16 +1,16 @@
 package com.healthconcierge.orchestrator.agent;
 
-import com.healthconcierge.orchestrator.client.GeminiApiClient;
+import com.healthconcierge.orchestrator.client.NvidiaApiClient;
 import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 
 @Component
 public class AppointmentAgent {
 
-    private final GeminiApiClient geminiApiClient;
+    private final NvidiaApiClient nvidiaApiClient;
 
-    public AppointmentAgent(GeminiApiClient geminiApiClient) {
-        this.geminiApiClient = geminiApiClient;
+    public AppointmentAgent(NvidiaApiClient nvidiaApiClient) {
+        this.nvidiaApiClient = nvidiaApiClient;
     }
 
     public String process(String contextSummary) {
@@ -37,6 +37,6 @@ public class AppointmentAgent {
             "  \"response_text\": \"friendly natural language reply to the user\"\n" +
             "}";
 
-        return geminiApiClient.chat(systemPrompt, contextSummary);
+        return nvidiaApiClient.chat(systemPrompt, contextSummary);
     }
 }

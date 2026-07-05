@@ -12,17 +12,17 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-public class GeminiApiClient {
+public class NvidiaApiClient {
 
     private static final String API_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
     private static final String MODEL   = "nvidia/nemotron-3-ultra-550b-a55b";
 
     private final RestTemplate restTemplate;
 
-    @Value("${gemini.api.key}")
+    @Value("${nvidia.api.key}")
     private String apiKey;
 
-    public GeminiApiClient(RestTemplate restTemplate) {
+    public NvidiaApiClient(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
 
@@ -61,7 +61,6 @@ public class GeminiApiClient {
         headers.set("Accept", "application/json");
 
         // Messages: system + user
-        // matches Python: messages=[{"role":"user","content":"..."}]
         List<Map<String, String>> messages = List.of(
                 Map.of("role", "system", "content", systemPrompt),
                 Map.of("role", "user",   "content", userMessage)

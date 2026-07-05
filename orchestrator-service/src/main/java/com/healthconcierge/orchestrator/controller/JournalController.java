@@ -1,8 +1,7 @@
 package com.healthconcierge.orchestrator.controller;
 
-import com.healthconcierge.orchestrator.model.JournalEntry;
+import com.healthconcierge.orchestrator.mcp.McpToolRegistry;
 import com.healthconcierge.orchestrator.model.User;
-import com.healthconcierge.orchestrator.repository.JournalEntryRepository;
 import com.healthconcierge.orchestrator.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
@@ -10,21 +9,20 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/journal")
 @CrossOrigin(origins = "http://localhost:3000")
 public class JournalController {
 
-    private final JournalEntryRepository journalEntryRepository;
+    private final McpToolRegistry mcpToolRegistry;
     private final UserRepository userRepository;
 
-    public JournalController(JournalEntryRepository journalEntryRepository, UserRepository userRepository) {
-        this.journalEntryRepository = journalEntryRepository;
+    public JournalController(McpToolRegistry mcpToolRegistry, UserRepository userRepository) {
+        this.mcpToolRegistry = mcpToolRegistry;
         this.userRepository = userRepository;
     }
 
@@ -37,57 +35,75 @@ public class JournalController {
         return user.map(User::getId).orElse(auth.getName());
     }
 
+    private String resolveRole(HttpServletRequest request) {
+        String role = (String) request.getAttribute("jwt_role");
+        return role != null ? role : "USER";
+    }
+
+    // GET /api/journal?days=7 — fetch health history (vitals + symptoms)
     @GetMapping
-    public List<JournalEntry> getEntries(Authentication auth, HttpServletRequest request) {
-        return journalEntryRepository.findByUserIdOrderByCreatedAtDesc(resolveUserId(auth, request));
+    public Object getHistory(
+            @RequestParam(defaultValue = "7") int days,
+            Authentication auth,
+            HttpServletRequest request) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("user_id", resolveUserId(auth, request));
+        params.put("days", days);
+        return mcpToolRegistry.callTool("get_health_history", params, resolveRole(request));
     }
 
-    @PostMapping
-    public ResponseEntity<?> createEntry(@RequestBody Map<String, String> body, Authentication auth, HttpServletRequest request) {
+    // POST /api/journal/vitals — log a vital sign
+    @PostMapping("/vitals")
+    public ResponseEntity<?> logVitals(
+            @RequestBody Map<String, Object> body,
+            Authentication auth,
+            HttpServletRequest request) {
         if ("CAREGIVER".equals(request.getAttribute("jwt_role"))) {
-            return ResponseEntity.status(403).body(Map.of("error", "Caregivers cannot create journal entries"));
-        }
-        JournalEntry entry = new JournalEntry();
-        entry.setId(UUID.randomUUID().toString());
-        entry.setUserId(resolveUserId(auth, request));
-        entry.setTitle(body.getOrDefault("title", ""));
-        entry.setContent(body.getOrDefault("content", ""));
-        entry.setMood(body.getOrDefault("mood", "okay"));
-        entry.setCreatedAt(LocalDateTime.now());
-        entry.setUpdatedAt(LocalDateTime.now());
-        return ResponseEntity.ok(journalEntryRepository.save(entry));
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<?> updateEntry(@PathVariable String id, @RequestBody Map<String, String> body, Authentication auth, HttpServletRequest request) {
-        if ("CAREGIVER".equals(request.getAttribute("jwt_role"))) {
-            return ResponseEntity.status(403).body(Map.of("error", "Caregivers cannot edit journal entries"));
+            return ResponseEntity.status(403).body(Map.of("error", "Caregivers cannot log vitals"));
         }
         String userId = resolveUserId(auth, request);
-        Optional<JournalEntry> opt = journalEntryRepository.findById(id);
-        if (opt.isEmpty() || !opt.get().getUserId().equals(userId)) {
-            return ResponseEntity.status(403).body(Map.of("error", "Not found or unauthorized"));
-        }
-        JournalEntry entry = opt.get();
-        if (body.containsKey("title")) entry.setTitle(body.get("title"));
-        if (body.containsKey("content")) entry.setContent(body.get("content"));
-        if (body.containsKey("mood")) entry.setMood(body.get("mood"));
-        entry.setUpdatedAt(LocalDateTime.now());
-        return ResponseEntity.ok(journalEntryRepository.save(entry));
+        body.put("user_id", userId);
+        // Default recorded_at to now if not provided
+        body.putIfAbsent("recorded_at", LocalDateTime.now().toString());
+        System.out.println("[Journal] Logging vitals for userId: " + userId);
+        Object result = mcpToolRegistry.callTool("log_vitals", body, "USER");
+        return ResponseEntity.ok(result);
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteEntry(@PathVariable String id, Authentication auth, HttpServletRequest request) {
+    // POST /api/journal/symptoms — log a symptom
+    @PostMapping("/symptoms")
+    public ResponseEntity<?> logSymptom(
+            @RequestBody Map<String, Object> body,
+            Authentication auth,
+            HttpServletRequest request) {
         if ("CAREGIVER".equals(request.getAttribute("jwt_role"))) {
-            return ResponseEntity.status(403).body(Map.of("error", "Caregivers cannot delete journal entries"));
+            return ResponseEntity.status(403).body(Map.of("error", "Caregivers cannot log symptoms"));
         }
         String userId = resolveUserId(auth, request);
-        Optional<JournalEntry> opt = journalEntryRepository.findById(id);
-        if (opt.isEmpty() || !opt.get().getUserId().equals(userId)) {
-            return ResponseEntity.status(403).body(Map.of("error", "Not found or unauthorized"));
+        body.put("user_id", userId);
+
+        // Ensure severity is Integer not String
+        Object sev = body.get("severity");
+        if (sev instanceof String) {
+            body.put("severity", Integer.parseInt((String) sev));
+        } else if (sev instanceof Number) {
+            body.put("severity", ((Number) sev).intValue());
         }
-        journalEntryRepository.deleteById(id);
-        return ResponseEntity.ok(Map.of("message", "Deleted"));
+
+        System.out.println("[Journal] Logging symptom for userId: " + userId);
+        Object result = mcpToolRegistry.callTool("log_symptom", body, "USER");
+        return ResponseEntity.ok(result);
+    }
+
+    // GET /api/journal/trends/{vitalType} — get trend analysis
+    @GetMapping("/trends/{vitalType}")
+    public Object getTrends(
+            @PathVariable String vitalType,
+            Authentication auth,
+            HttpServletRequest request) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("user_id", resolveUserId(auth, request));
+        params.put("vital_type", vitalType);
+        return mcpToolRegistry.callTool("get_trend_analysis", params, resolveRole(request));
     }
 }
-
