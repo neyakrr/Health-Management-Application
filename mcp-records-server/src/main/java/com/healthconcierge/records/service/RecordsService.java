@@ -18,6 +18,26 @@ public class RecordsService {
         this.vitalRepository = vitalRepository;
         this.symptomRepository = symptomRepository;
     }
+    private LocalDateTime parseRecordedAt(String str) {
+        if (str == null || str.trim().isEmpty()) {
+            return LocalDateTime.now();
+        }
+        try {
+            return LocalDateTime.parse(str);
+        } catch (Exception e) {
+            try {
+                return java.time.OffsetDateTime.parse(str).toLocalDateTime();
+            } catch (Exception e2) {
+                try {
+                    return java.time.LocalDate.parse(str).atStartOfDay();
+                } catch (Exception e3) {
+                    System.err.println("[RecordsService] Failed to parse recordedAt: '" + str + "', defaulting to now.");
+                    return LocalDateTime.now();
+                }
+            }
+        }
+    }
+
     @Transactional
     public Vital logVital(String userId, String type, Double value, String unit, String recordedAtStr) {
         Vital v = new Vital();
@@ -26,7 +46,7 @@ public class RecordsService {
         v.setType(type);
         v.setValue(value);
         v.setUnit(unit);
-        v.setRecordedAt(LocalDateTime.parse(recordedAtStr));
+        v.setRecordedAt(parseRecordedAt(recordedAtStr));
         return vitalRepository.save(v);
     }
     @Transactional

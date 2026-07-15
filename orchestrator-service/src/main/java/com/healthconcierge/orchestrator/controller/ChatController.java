@@ -41,6 +41,7 @@ public class ChatController {
     @PostMapping
     public Map<String, Object> chat(@RequestBody Map<String, Object> request) {
         String message = (String) request.get("message");
+        System.out.println("[ChatController] Incoming message: " + message);
 
         // Resolve UUID from email — same pattern as AppointmentController
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -56,9 +57,11 @@ public class ChatController {
         try {
             // 1. Classify intent via orchestrator
             String rawIntentJson = orchestratorAgent.process(message);
+            System.out.println("[ChatController] OrchestratorAgent raw intent JSON: " + rawIntentJson);
             JsonNode intentNode = parseJsonSafely(rawIntentJson);
 
             if (intentNode == null) {
+                System.out.println("[ChatController] Failed to parse raw intent JSON.");
                 return errorResponse("Could not understand the request. Please try rephrasing.");
             }
 
@@ -70,11 +73,14 @@ public class ChatController {
                     ? intentNode.get("context_summary").asText()
                     : message;
 
+            System.out.println("[ChatController] Classified intents: " + intents + " | Context summary: " + contextSummary);
+
             if (intents.isEmpty() || intents.contains("GENERAL")) {
                 agentsUsed.add("OrchestratorAgent");
                 Map<String, Object> response = new HashMap<>();
                 response.put("response", contextSummary.equals(message) ? rawIntentJson : contextSummary);
                 response.put("agents_used", agentsUsed);
+                System.out.println("[ChatController] General message handled. Response: " + response.get("response"));
                 return response;
             }
 
@@ -82,22 +88,30 @@ public class ChatController {
             for (String intent : intents) {
                 switch (intent) {
                     case "MEDICATION" -> {
-                        String result = runSpecialist("MedicationAgent", medicationAgent.process(contextSummary), userId, userRole);
+                        String processOutput = medicationAgent.process(contextSummary);
+                        System.out.println("[ChatController] MedicationAgent raw process output: " + processOutput);
+                        String result = runSpecialist("MedicationAgent", processOutput, userId, userRole);
                         combinedForMerge.append("MedicationAgent: ").append(result).append("\n");
                         agentsUsed.add("MedicationAgent");
                     }
                     case "APPOINTMENT" -> {
-                        String result = runSpecialist("AppointmentAgent", appointmentAgent.process(contextSummary), userId, userRole);
+                        String processOutput = appointmentAgent.process(contextSummary);
+                        System.out.println("[ChatController] AppointmentAgent raw process output: " + processOutput);
+                        String result = runSpecialist("AppointmentAgent", processOutput, userId, userRole);
                         combinedForMerge.append("AppointmentAgent: ").append(result).append("\n");
                         agentsUsed.add("AppointmentAgent");
                     }
                     case "JOURNAL" -> {
-                        String result = runSpecialist("JournalAgent", journalAgent.process(contextSummary), userId, userRole);
+                        String processOutput = journalAgent.process(contextSummary);
+                        System.out.println("[ChatController] JournalAgent raw process output: " + processOutput);
+                        String result = runSpecialist("JournalAgent", processOutput, userId, userRole);
                         combinedForMerge.append("JournalAgent: ").append(result).append("\n");
                         agentsUsed.add("JournalAgent");
                     }
                     case "CAREGIVER" -> {
-                        String result = runSpecialist("CaregiverAgent", caregiverAgent.process(contextSummary), userId, userRole);
+                        String processOutput = caregiverAgent.process(contextSummary);
+                        System.out.println("[ChatController] CaregiverAgent raw process output: " + processOutput);
+                        String result = runSpecialist("CaregiverAgent", processOutput, userId, userRole);
                         combinedForMerge.append("CaregiverAgent: ").append(result).append("\n");
                         agentsUsed.add("CaregiverAgent");
                     }
@@ -107,6 +121,7 @@ public class ChatController {
 
             // 3. Merge all specialist outputs into one natural-language reply
             String finalResponse = orchestratorAgent.mergeResponses(message, combinedForMerge.toString());
+            System.out.println("[ChatController] Final merged response: " + finalResponse);
 
             Map<String, Object> response = new HashMap<>();
             response.put("response", finalResponse);
@@ -114,6 +129,8 @@ public class ChatController {
             return response;
 
         } catch (Exception e) {
+            System.err.println("[ChatController] Error processing request: " + e.getMessage());
+            e.printStackTrace();
             return errorResponse("Something went wrong: " + e.getMessage());
         }
     }

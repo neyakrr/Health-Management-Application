@@ -22,27 +22,54 @@ public class McpController {
         manifest.put("tools", tools);
         return manifest;
     }
+
+    // ── Safe type-coercion helpers ────────────────────────────────────────────
+    // Jackson may deserialise JSON numbers as Integer, Long, or Double.
+    // Direct casts blow up with ClassCastException when the type doesn't match.
+    private Integer toInt(Object o) {
+        if (o == null) return null;
+        if (o instanceof Number) return ((Number) o).intValue();
+        return Integer.parseInt(o.toString());
+    }
+    private Double toDouble(Object o) {
+        if (o == null) return null;
+        if (o instanceof Number) return ((Number) o).doubleValue();
+        return Double.parseDouble(o.toString());
+    }
+    private String toStr(Object o) {
+        return o == null ? null : o.toString();
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     @PostMapping("/tools/{toolName}")
     public Map<String, Object> executeTool(@PathVariable String toolName, @RequestBody Map<String, Object> params) {
         Map<String, Object> response = new HashMap<>();
         try {
             Object result = null;
-            String userId = (String) params.get("user_id");
+            String userId = toStr(params.get("user_id"));
             switch (toolName) {
                 case "log_vitals":
-                    // Parse double safely
-                    Object valObj = params.get("value");
-                    Double value = valObj instanceof Integer ? ((Integer) valObj).doubleValue() : (Double) valObj;
-                    result = recordsService.logVital(userId, (String) params.get("type"), value, (String) params.get("unit"), (String) params.get("recorded_at"));
+                    result = recordsService.logVital(
+                        userId,
+                        toStr(params.get("type")),
+                        toDouble(params.get("value")),
+                        toStr(params.get("unit")),
+                        toStr(params.get("recorded_at"))
+                    );
                     break;
                 case "log_symptom":
-                    result = recordsService.logSymptom(userId, (String) params.get("symptom"), (Integer) params.get("severity"), (String) params.get("notes"));
+                    result = recordsService.logSymptom(
+                        userId,
+                        toStr(params.get("symptom")),
+                        toInt(params.get("severity")),
+                        toStr(params.get("notes"))
+                    );
                     break;
                 case "get_health_history":
-                    result = recordsService.getHealthHistory(userId, (Integer) params.get("days"));
+                    result = recordsService.getHealthHistory(userId, toInt(params.get("days")));
                     break;
                 case "get_trend_analysis":
-                    result = recordsService.getTrendAnalysis(userId, (String) params.get("vital_type"));
+                    result = recordsService.getTrendAnalysis(userId, toStr(params.get("vital_type")));
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown tool: " + toolName);
@@ -50,9 +77,11 @@ public class McpController {
             response.put("success", true);
             response.put("result", result);
         } catch (Exception e) {
+            System.err.println("[Records] Tool error for " + toolName + ": " + e.getMessage());
             response.put("success", false);
             response.put("error", e.getMessage());
         }
         return response;
     }
 }
+

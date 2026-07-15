@@ -24,27 +24,50 @@ public class McpController {
         manifest.put("tools", tools);
         return manifest;
     }
+
+    // ── Safe type-coercion helpers ────────────────────────────────────────────
+    // Jackson deserialises JSON numbers as Integer, Long, or Double depending on
+    // value magnitude. Direct casts like (Integer) obj blow up with ClassCastException
+    // when the LLM sends a value that Jackson chose to represent as Long/Double.
+    private Integer toInt(Object o) {
+        if (o == null) return null;
+        if (o instanceof Number) return ((Number) o).intValue();
+        return Integer.parseInt(o.toString());
+    }
+    private String toStr(Object o) {
+        return o == null ? null : o.toString();
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     @PostMapping("/tools/{toolName}")
     public Map<String, Object> executeTool(@PathVariable String toolName, @RequestBody Map<String, Object> params) {
         Map<String, Object> response = new HashMap<>();
         try {
             Object result = null;
-            String userId = (String) params.get("user_id");
+            String userId = toStr(params.get("user_id"));
             switch (toolName) {
                 case "check_drug_interactions":
-                    result = pharmacyService.checkDrugInteractions(userId, (String) params.get("new_drug_name"));
+                    result = pharmacyService.checkDrugInteractions(userId, toStr(params.get("new_drug_name")));
                     break;
                 case "get_drug_info":
-                    result = pharmacyService.getDrugInfo((String) params.get("drug_name"));
+                    result = pharmacyService.getDrugInfo(toStr(params.get("drug_name")));
                     break;
                 case "get_medication_schedule":
                     result = pharmacyService.getMedicationSchedule(userId);
                     break;
                 case "add_medication":
-                    result = pharmacyService.addMedication(userId, (String) params.get("name"), (String) params.get("dosage"), (String) params.get("frequency"), (String) params.get("food_instructions"), (Integer) params.get("quantity"), (Integer) params.get("refill_threshold"));
+                    result = pharmacyService.addMedication(
+                        userId,
+                        toStr(params.get("name")),
+                        toStr(params.get("dosage")),
+                        toStr(params.get("frequency")),
+                        toStr(params.get("food_instructions")),
+                        toInt(params.get("quantity")),
+                        toInt(params.get("refill_threshold"))
+                    );
                     break;
                 case "log_dose_taken":
-                    result = pharmacyService.logDoseTaken(userId, (String) params.get("medication_id"), (String) params.get("taken_at"));
+                    result = pharmacyService.logDoseTaken(userId, toStr(params.get("medication_id")), toStr(params.get("taken_at")));
                     break;
                 case "get_refill_alerts":
                     result = pharmacyService.getRefillAlerts(userId);
@@ -55,9 +78,11 @@ public class McpController {
             response.put("success", true);
             response.put("result", result);
         } catch (Exception e) {
+            System.err.println("[Pharmacy] Tool error for " + toolName + ": " + e.getMessage());
             response.put("success", false);
             response.put("error", e.getMessage());
         }
         return response;
     }
 }
+

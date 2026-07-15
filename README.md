@@ -482,4 +482,176 @@ Patients can invite caregivers (family members, home nurses) to view their healt
 
 > Caregivers cannot modify any data. They can only view.
 
+---
 
+## 🗄️ Database Management
+
+The project uses **SQLite** — one `.db` file per service, stored under the `data/` directory which is mounted as a Docker volume.
+
+### Database Files
+
+| File | Service | Contains |
+|------|---------|----------|
+| `data/orchestrator/health_concierge.db` | Spring Boot backend | Users, caregivers, sessions |
+| `data/pharmacy/pharmacy.db` | mcp-pharmacy-server | Medications, dose logs |
+| `data/calendar/calendar.db` | mcp-calendar-server | Appointments |
+| `data/records/records.db` | mcp-records-server | Vitals, symptoms |
+| `data/notify/notify.db` | mcp-notify-server | Notification logs |
+
+---
+
+### Reset / Clean the Database
+
+> [!WARNING]
+> All of the commands below permanently delete data. There is no undo. Back up the `data/` folder first if you need to preserve anything.
+
+---
+
+#### Option A — Full Reset (Wipe Everything & Restart Fresh)
+
+**Windows (PowerShell):**
+```powershell
+# 1. Stop all services
+docker compose stop
+
+# 2. Delete all database files
+Remove-Item "data\orchestrator\health_concierge.db" -Force -ErrorAction SilentlyContinue
+Remove-Item "data\pharmacy\pharmacy.db"              -Force -ErrorAction SilentlyContinue
+Remove-Item "data\calendar\calendar.db"              -Force -ErrorAction SilentlyContinue
+Remove-Item "data\records\records.db"                -Force -ErrorAction SilentlyContinue
+Remove-Item "data\notify\notify.db"                  -Force -ErrorAction SilentlyContinue
+
+# 3. Start services — tables are auto-created on boot
+docker compose up -d
+```
+
+**Linux / macOS (Bash):**
+```bash
+# 1. Stop all services
+docker compose stop
+
+# 2. Delete all database files
+rm -f data/orchestrator/health_concierge.db \
+      data/pharmacy/pharmacy.db \
+      data/calendar/calendar.db \
+      data/records/records.db \
+      data/notify/notify.db
+
+# 3. Start services — tables are auto-created on boot
+docker compose up -d
+```
+
+Or use the provided one-liner reset scripts:
+
+```powershell
+# Windows
+.\db-reset.ps1
+```
+```bash
+# Linux / macOS
+./db-reset.sh
+```
+
+---
+
+#### Option B — Reset Only One Database
+
+For example, to wipe only medications (pharmacy) data:
+
+```powershell
+# Windows
+docker compose stop mcp-pharmacy
+Remove-Item "data\pharmacy\pharmacy.db" -Force
+docker compose start mcp-pharmacy
+```
+
+```bash
+# Linux / macOS
+docker compose stop mcp-pharmacy
+rm -f data/pharmacy/pharmacy.db
+docker compose start mcp-pharmacy
+```
+
+Same pattern applies to any individual service:
+
+| To reset | Stop/start service | Delete file |
+|----------|--------------------|-------------|
+| Users & caregivers | `orchestrator` | `data/orchestrator/health_concierge.db` |
+| Medications | `mcp-pharmacy` | `data/pharmacy/pharmacy.db` |
+| Appointments | `mcp-calendar` | `data/calendar/calendar.db` |
+| Vitals & symptoms | `mcp-records` | `data/records/records.db` |
+| Notifications | `mcp-notify` | `data/notify/notify.db` |
+
+---
+
+#### Option C — Wipe Data But Keep Schema (SQLite shell)
+
+If you want to clear rows without deleting the file, use the SQLite CLI (install via `winget install SQLite.SQLite` or `brew install sqlite`):
+
+```bash
+# Example: clear all medications
+sqlite3 data/pharmacy/pharmacy.db "DELETE FROM medications;"
+sqlite3 data/pharmacy/pharmacy.db "DELETE FROM dose_logs;"
+
+# Example: clear all users (will also need to clear caregivers)
+sqlite3 data/orchestrator/health_concierge.db "DELETE FROM caregivers;"
+sqlite3 data/orchestrator/health_concierge.db "DELETE FROM users;"
+
+# Confirm tables are empty
+sqlite3 data/orchestrator/health_concierge.db ".tables"
+sqlite3 data/orchestrator/health_concierge.db "SELECT COUNT(*) FROM users;"
+```
+
+> [!NOTE]
+> You do **not** need to restart Docker after a `DELETE` — the services read/write live and will reflect the empty tables immediately.
+
+---
+
+### How Tables Are Created
+
+Spring Boot is configured with:
+```properties
+spring.jpa.hibernate.ddl-auto=update
+```
+
+This means:
+- On first boot (no `.db` file) → Hibernate **creates all tables** automatically
+- On subsequent boots → Hibernate only **adds missing columns** (safe migration)
+- Deleting the `.db` file and restarting = **complete fresh schema + empty data**
+
+The MCP servers (Node.js) similarly run `CREATE TABLE IF NOT EXISTS` on startup, so they self-heal if their `.db` is deleted.
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit your changes: `git commit -m "Add my feature"`
+4. Push to the branch: `git push origin feature/my-feature`
+5. Open a Pull Request
+
+---
+
+## License
+
+This project is built as a **capstone academic project**. All rights reserved to the original authors.
+
+---
+
+## Troubleshooting
+
+**Services won't start:**
+```bash
+docker compose logs orchestrator   # View backend logs
+docker compose logs frontend       # View frontend logs
+```
+
+**NVIDIA API errors:**
+- Verify your `NVIDIA_API_KEY` is valid at [build.nvidia.com](https://build.nvidia.com)
+- Check that you have sufficient API credits
+
+**Email not sending:**
+- Ensure Gmail 2FA is enabled
+- Use an App Password (not your regular Gmail password)
+- Check `MAIL_USERNAME` and `MAIL_PASSWORD` in `.env`
